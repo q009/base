@@ -652,6 +652,15 @@ VAR(IDF_PERSIST, outline, 0, 1, 1);
 CVAR0(IDF_PERSIST, outlinecolour, 0);
 VAR(0, dtoutline, 0, 1, 1);
 
+static int getalphatris(vtxarray *va)
+{
+    int result = 0;
+
+    loopi(VA_ALPHA_NUM_TYPES) result += va->alpha[i].tris;
+
+    return result;
+}
+
 void renderoutline()
 {
     ldrnotextureshader->set();
@@ -668,7 +677,9 @@ void renderoutline()
     vtxarray *prev = NULL;
     for(vtxarray *va = visibleva; va; va = va->next) if(va->occluded < OCCLUDE_BB)
     {
-        if((!va->texs || va->occluded >= OCCLUDE_GEOM) && !va->alphaback && !va->alphafront && !va->refracttris) continue;
+        int alphatris = getalphatris(va);
+
+        if((!va->texs || va->occluded >= OCCLUDE_GEOM) && !alphatris) continue;
 
         if(!prev || va->vbuf != prev->vbuf)
         {
@@ -683,10 +694,10 @@ void renderoutline()
             drawvatris(va, 3*va->tris, 0);
             xtravertsva += va->verts;
         }
-        if(va->alphaback || va->alphafront || va->refract)
+        if(alphatris)
         {
-            drawvatris(va, 3*(va->alphabacktris + va->alphafronttris + va->refracttris), 3*(va->tris + va->blendtris));
-            xtravertsva += 3*(va->alphabacktris + va->alphafronttris + va->refracttris);
+            drawvatris(va, 3*alphatris, 3*(va->tris + va->blendtris));
+            xtravertsva += 3*alphatris;
         }
 
         prev = va;
@@ -1276,8 +1287,12 @@ static void mergetexs(renderstate &cur, vtxarray *va, elementset *texs = NULL, i
         {
             texs += va->texs + va->blends;
             offset += 3*(va->tris + va->blendtris);
-            numtexs = va->alphaback;
-            if(cur.alphaing > 1) numtexs += va->alphafront + va->refract;
+            numtexs = 0;
+            loopi(VA_ALPHA_NUM_TYPES)
+            {
+                if(i != VA_ALPHA_BACK && cur.alphaing <= 1) continue;
+                numtexs += va->alpha[i].texs;
+            }
         }
     }
 
@@ -1681,7 +1696,7 @@ void renderzpass(renderstate &cur, vtxarray *va)
     {
         firsttex += va->texs + va->blends;
         offset += 3*(va->tris + va->blendtris);
-        numtris = va->alphabacktris + va->alphafronttris + va->refracttris;
+        numtris = getalphatris(va);
         xtravertsva += 3*numtris;
     }
     else xtravertsva += va->verts;
@@ -1996,51 +2011,62 @@ void renderrsmgeom(bool dyntex)
 }
 
 static vector<vtxarray *> alphavas;
-static int alphabackvas = 0, alpharefractvas = 0;
-float alphafrontsx1 = -1, alphafrontsx2 = 1, alphafrontsy1 = -1, alphafrontsy2 = -1,
-      alphabacksx1 = -1, alphabacksx2 = 1, alphabacksy1 = -1, alphabacksy2 = -1,
-      alpharefractsx1 = -1, alpharefractsx2 = 1, alpharefractsy1 = -1, alpharefractsy2 = 1;
+vec2 vaalphabbmin[VA_ALPHA_NUM_TYPES], vaalphabbmax[VA_ALPHA_NUM_TYPES];
 uint alphatiles[LIGHTTILE_MAXH];
 
 int findalphavas()
 {
     alphavas.setsize(0);
-    alphafrontsx1 = alphafrontsy1 = alphabacksx1 = alphabacksy1 = alpharefractsx1 = alpharefractsy1 = 1;
-    alphafrontsx2 = alphafrontsy2 = alphabacksx2 = alphabacksy2 = alpharefractsx2 = alpharefractsy2 = -1;
-    alphabackvas = alpharefractvas = 0;
-    memset(alphatiles, 0, sizeof(alphatiles));
-    for(vtxarray *va = visibleva; va; va = va->next) if(va->alphabacktris || va->alphafronttris || va->refracttris)
+
+    loopi(VA_ALPHA_NUM_TYPES)
     {
-        if(va->occluded >= OCCLUDE_BB) continue;
-        if(va->occluded >= OCCLUDE_GEOM && pvsoccluded(va->alphamin, va->alphamax)) continue;
-        if(va->curvfc==VFC_FOGGED) continue;
-        float sx1 = -1, sx2 = 1, sy1 = -1, sy2 = 1;
-        if(!calcbbscissor(va->alphamin, va->alphamax, sx1, sy1, sx2, sy2)) continue;
-        alphavas.add(va);
-        masktiles(alphatiles, sx1, sy1, sx2, sy2);
-        alphafrontsx1 = min(alphafrontsx1, sx1);
-        alphafrontsy1 = min(alphafrontsy1, sy1);
-        alphafrontsx2 = max(alphafrontsx2, sx2);
-        alphafrontsy2 = max(alphafrontsy2, sy2);
-        if(va->alphabacktris)
-        {
-            alphabackvas++;
-            alphabacksx1 = min(alphabacksx1, sx1);
-            alphabacksy1 = min(alphabacksy1, sy1);
-            alphabacksx2 = max(alphabacksx2, sx2);
-            alphabacksy2 = max(alphabacksy2, sy2);
-        }
-        if(va->refracttris)
-        {
-            if(!calcbbscissor(va->refractmin, va->refractmax, sx1, sy1, sx2, sy2)) continue;
-            alpharefractvas++;
-            alpharefractsx1 = min(alpharefractsx1, sx1);
-            alpharefractsy1 = min(alpharefractsy1, sy1);
-            alpharefractsx2 = max(alpharefractsx2, sx2);
-            alpharefractsy2 = max(alpharefractsy2, sy2);
-        }
+        vaalphabbmin[i] = vec2(1, 1);
+        vaalphabbmax[i] = vec2(-1, -1);
     }
-    return (alpharefractvas ? 4 : 0) | (alphavas.length() ? 2 : 0) | (alphabackvas ? 1 : 0);
+
+    int numalphavas[VA_ALPHA_NUM_TYPES] = { 0 };
+
+    memset(alphatiles, 0, sizeof(alphatiles));
+
+    for(vtxarray *va = visibleva; va; va = va->next) if(getalphatris(va))
+    {
+        bool visible = false;
+
+        if(va->occluded >= OCCLUDE_BB) continue;
+        if(va->curvfc==VFC_FOGGED) continue;
+
+        loopi(VA_ALPHA_NUM_TYPES) if(va->alpha[i].tris)
+        {
+            vec2 scmin, scmax;
+            bool scissor = !calcbbscissor(va->alpha[i].bbmin, va->alpha[i].bbmax,
+                scmin.x, scmin.y, scmax.x, scmax.y);
+
+            bool pvs = va->occluded >= OCCLUDE_GEOM && pvsoccluded(va->alpha[i].bbmin, va->alpha[i].bbmax);
+
+            if(scissor || pvs) continue;
+
+            visible = true;
+            numalphavas[i]++;
+
+            vaalphabbmin[i].min(scmin);
+            vaalphabbmax[i].max(scmax);
+
+            // conoutf("%d : %d tris %d texs : %d %d %d -> %d %d %d : %f %f -> %f %f",
+            //     i, va->alpha[i].tris, va->alpha[i].texs,
+            //     va->alpha[i].bbmin.x, va->alpha[i].bbmin.y, va->alpha[i].bbmin.z,
+            //     va->alpha[i].bbmax.x, va->alpha[i].bbmax.y, va->alpha[i].bbmax.z,
+            //     vaalphabbmin[i].x, vaalphabbmin[i].y,
+            //     vaalphabbmax[i].x, vaalphabbmax[i].y);
+
+            masktiles(alphatiles, scmin.x, scmin.y, scmax.x, scmax.y);
+        }
+
+        if(visible) alphavas.add(va);
+    }
+
+    int result = (numalphavas[VA_ALPHA_REFRACT] ? 4 : 0) | (numalphavas[VA_ALPHA_FRONT] ? 2 : 0) | (numalphavas[VA_ALPHA_BACK] ? 1 : 0);
+
+    return result;
 }
 
 void renderrefractmask()
@@ -2051,7 +2077,7 @@ void renderrefractmask()
     loopv(alphavas)
     {
         vtxarray *va = alphavas[i];
-        if(!va->refracttris) continue;
+        if(!va->alpha[VA_ALPHA_REFRACT].tris) continue;
 
         if(!prev || va->vbuf != prev->vbuf)
         {
@@ -2061,8 +2087,10 @@ void renderrefractmask()
             gle::vertexpointer(sizeof(vertex), ptr->pos.v);
         }
 
-        drawvatris(va, 3*va->refracttris, 3*(va->tris + va->blendtris + va->alphabacktris + va->alphafronttris));
-        xtravertsva += 3*va->refracttris;
+        int alphaothertris = getalphatris(va) - va->alpha[VA_ALPHA_REFRACT].tris;
+
+        drawvatris(va, 3*va->alpha[VA_ALPHA_REFRACT].tris, 3*(va->tris + va->blendtris + alphaothertris));
+        xtravertsva += 3*va->alpha[VA_ALPHA_REFRACT].tris;
 
         prev = va;
     }
@@ -2090,7 +2118,7 @@ void renderalphageom(int side)
     else
     {
         glCullFace(GL_FRONT);
-        loopv(alphavas) if(alphavas[i]->alphabacktris) renderva(cur, alphavas[i], RENDERPASS_GBUFFER);
+        loopv(alphavas) if(alphavas[i]->alpha[VA_ALPHA_BACK].tris) renderva(cur, alphavas[i], RENDERPASS_GBUFFER);
         if(geombatches.length()) renderbatches(cur, RENDERPASS_GBUFFER);
         glCullFace(GL_BACK);
     }

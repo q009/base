@@ -166,21 +166,14 @@ struct verthash
     }
 };
 
-enum
-{
-    NO_ALPHA = 0,
-    ALPHA_BACK,
-    ALPHA_FRONT,
-    ALPHA_REFRACT
-};
-
 struct sortkey
 {
     ushort tex, envmap;
-    uchar orient, layer, alpha;
+    uchar orient, layer;
+    char alpha;
 
     sortkey() {}
-    sortkey(ushort tex, uchar orient, uchar layer = LAYER_TOP, ushort envmap = EMID_NONE, uchar alpha = NO_ALPHA)
+    sortkey(ushort tex, uchar orient, uchar layer = LAYER_TOP, ushort envmap = EMID_NONE, char alpha = VA_NO_ALPHA)
      : tex(tex), envmap(envmap), orient(orient), layer(layer), alpha(alpha)
     {}
 
@@ -279,8 +272,7 @@ struct vacollect : verthash
     vector<materialsurface> matsurfs;
     vector<octaentities *> mapmodels, decals, extdecals;
     int worldtris, skytris, decaltris;
-    vec alphamin, alphamax;
-    vec refractmin, refractmax;
+    vec alphamin[VA_ALPHA_NUM_TYPES], alphamax[VA_ALPHA_NUM_TYPES];
     vec skymin, skymax;
     ivec nogimin, nogimax;
 
@@ -298,8 +290,15 @@ struct vacollect : verthash
         grasstris.setsize(0);
         texs.setsize(0);
         decaltexs.setsize(0);
-        alphamin = refractmin = skymin = vec(1e16f, 1e16f, 1e16f);
-        alphamax = refractmax = skymax = vec(-1e16f, -1e16f, -1e16f);
+        skymin = vec(1e16f, 1e16f, 1e16f);
+        skymax = vec(-1e16f, -1e16f, -1e16f);
+
+        loopi(VA_ALPHA_NUM_TYPES)
+        {
+            alphamin[i] = vec(1e16f, 1e16f, 1e16f);
+            alphamax[i] = vec(-1e16f, -1e16f, -1e16f);
+        }
+
         nogimin = ivec(INT_MAX, INT_MAX, INT_MAX);
         nogimax = ivec(INT_MIN, INT_MIN, INT_MIN);
     }
@@ -352,7 +351,7 @@ struct vacollect : verthash
         loopv(texs)
         {
             const sortkey &k = texs[i];
-            if(k.layer == LAYER_BLEND || k.alpha != NO_ALPHA) continue;
+            if(k.layer == LAYER_BLEND || k.alpha != VA_NO_ALPHA) continue;
             const sortval &t = indices[k];
             if(t.tris.empty()) continue;
             decalkey tkey(key);
@@ -506,15 +505,12 @@ struct vacollect : verthash
         va->texs = texs.length();
         va->blendtris = 0;
         va->blends = 0;
-        va->alphabacktris = 0;
-        va->alphaback = 0;
-        va->alphafronttris = 0;
-        va->alphafront = 0;
-        va->refracttris = 0;
-        va->refract = 0;
         va->ebuf = 0;
         va->edata = 0;
         va->eoffset = 0;
+
+        loopi(VA_ALPHA_NUM_TYPES) va->alpha[i].tris = va->alpha[i].texs = 0;
+
         if(va->texs)
         {
             va->texelems = new elementset[va->texs];
@@ -548,15 +544,22 @@ struct vacollect : verthash
                 e.length = curbuf-startbuf;
 
                 if(k.layer==LAYER_BLEND) { va->texs--; va->tris -= e.length/3; va->blends++; va->blendtris += e.length/3; }
-                else if(k.alpha==ALPHA_BACK) { va->texs--; va->tris -= e.length/3; va->alphaback++; va->alphabacktris += e.length/3; }
-                else if(k.alpha==ALPHA_FRONT) { va->texs--; va->tris -= e.length/3; va->alphafront++; va->alphafronttris += e.length/3; }
-                else if(k.alpha==ALPHA_REFRACT) { va->texs--; va->tris -= e.length/3; va->refract++; va->refracttris += e.length/3; }
+                else if(k.alpha!=VA_NO_ALPHA)
+                {
+                    va->texs--;
+                    va->tris -= e.length/3;
+                    va->alpha[(int)k.alpha].texs++;
+                    va->alpha[(int)k.alpha].tris += e.length/3;
+                }
             }
         }
 
         va->texmask = 0;
         va->dyntexs = 0;
-        loopi(va->texs+va->blends+va->alphaback+va->alphafront+va->refract)
+
+        int texs = va->texs + va->blends;
+        loopi(VA_ALPHA_NUM_TYPES) texs += va->alpha[i].texs;
+        loopi(texs)
         {
             VSlot &vslot = lookupvslot(va->texelems[i].texture, false);
             if(vslot.isdynamic()) va->dyntexs++;
@@ -900,8 +903,18 @@ void addcubeverts(VSlot &vslot, int orient, int size, vec *pos, int convex, usho
 
     if(alpha)
     {
-        loopk(numverts) { vc.alphamin.min(pos[k]); vc.alphamax.max(pos[k]); }
-        if(vslot.refractscale > 0) loopk(numverts) { vc.refractmin.min(pos[k]); vc.refractmax.max(pos[k]); }
+        loopi(VA_ALPHA_NUM_TYPES)
+        {
+            switch(i)
+            {
+                // Skip alpha types if not enabled in the tex slot
+                case VA_ALPHA_FRONT: if(vslot.alphafront <= 0) continue; break;
+                case VA_ALPHA_BACK: if(vslot.alphaback <= 0) continue; break;
+                case VA_ALPHA_REFRACT: if(vslot.refractscale <= 0) continue; break;
+            }
+
+            loopk(numverts) { vc.alphamin[i].min(pos[k]); vc.alphamax[i].max(pos[k]); }
+        }
     }
     if(texture == DEFAULT_SKY) loopi(numverts) if(pos[i][orient>>1] != ((orient&1)<<worldscale))
     {
@@ -909,7 +922,18 @@ void addcubeverts(VSlot &vslot, int orient, int size, vec *pos, int convex, usho
         break;
     }
 
-    sortkey key(texture, vslot.scroll.iszero() ? O_ANY : orient, layer&LAYER_BOTTOM ? layer : LAYER_TOP, envmap, alpha ? (vslot.refractscale > 0 ? ALPHA_REFRACT : (vslot.alphaback ? ALPHA_BACK : ALPHA_FRONT)) : NO_ALPHA);
+    int keyorient = vslot.scroll.iszero() ? O_ANY : orient;
+    int keylayer = layer&LAYER_BOTTOM ? layer : LAYER_TOP;
+    int keyalpha = VA_NO_ALPHA;
+
+    if(alpha)
+    {
+        if(vslot.refractscale > 0) keyalpha = VA_ALPHA_REFRACT;
+        else if(vslot.alphaback) keyalpha = VA_ALPHA_BACK;
+        else keyalpha = VA_ALPHA_FRONT;
+    }
+
+    sortkey key(texture, keyorient, keylayer, envmap, keyalpha);
     addtris(vslot, orient, key, verts, index, numverts, convex, tj);
 
     if(grassy)
@@ -1148,23 +1172,24 @@ vtxarray *newva(const ivec &o, int size)
     va->curvfc = VFC_NOT_VISIBLE;
     va->occluded = OCCLUDE_NOTHING;
     va->query = NULL;
-    va->bbmin = va->alphamin = va->refractmin = va->skymin = ivec(-1, -1, -1);
-    va->bbmax = va->alphamax = va->refractmax = va->skymax = ivec(-1, -1, -1);
+    va->bbmin = va->skymin = ivec(-1, -1, -1);
+    va->bbmax = va->skymax = ivec(-1, -1, -1);
     va->hasmerges = 0;
     va->mergelevel = -1;
 
     vc.setupdata(va);
 
-    if(va->alphafronttris || va->alphabacktris || va->refracttris)
-    {
-        va->alphamin = ivec(vec(vc.alphamin).mul(8)).shr(3);
-        va->alphamax = ivec(vec(vc.alphamax).mul(8)).add(7).shr(3);
-    }
+    int alphatris = 0;
 
-    if(va->refracttris)
+    loopi(VA_ALPHA_NUM_TYPES)
     {
-        va->refractmin = ivec(vec(vc.refractmin).mul(8)).shr(3);
-        va->refractmax = ivec(vec(vc.refractmax).mul(8)).add(7).shr(3);
+        if(va->alpha[i].tris)
+        {
+            alphatris += va->alpha[i].tris;
+            va->alpha[i].bbmin = ivec(vec(vc.alphamin[i]).mul(8)).shr(3);
+            va->alpha[i].bbmax = ivec(vec(vc.alphamax[i]).mul(8)).add(7).shr(3);
+        }
+        else va->alpha[i].bbmin = va->alpha[i].bbmax = ivec(-1, -1, -1);
     }
 
     if(va->sky && vc.skymax.x >= 0)
@@ -1177,7 +1202,7 @@ vtxarray *newva(const ivec &o, int size)
     va->nogimax = vc.nogimax;
 
     wverts += va->verts;
-    wtris  += va->tris + va->blends + va->alphabacktris + va->alphafronttris + va->refracttris + va->decaltris;
+    wtris  += va->tris + va->blends + alphatris + va->decaltris;
     allocva++;
     valist.add(va);
 
@@ -1186,8 +1211,12 @@ vtxarray *newva(const ivec &o, int size)
 
 void destroyva(vtxarray *va, bool reparent)
 {
+    int alphatris = 0;
+
+    loopi(VA_ALPHA_NUM_TYPES) alphatris += va->alpha[i].tris;
+
     wverts -= va->verts;
-    wtris -= va->tris + va->blends + va->alphabacktris + va->alphafronttris + va->refracttris + va->decaltris;
+    wtris -= va->tris + va->blends + alphatris + va->decaltris;
     allocva--;
     valist.removeobj(va);
     if(!va->parent) varoot.removeobj(va);

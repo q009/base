@@ -4618,8 +4618,8 @@ void rendertransparent()
         glDepthMask(GL_FALSE);
         if(msaalight) glBindTexture(GL_TEXTURE_2D_MULTISAMPLE, msdepthtex);
         else glBindTexture(GL_TEXTURE_RECTANGLE, gdepthtex);
-        float sx1 = min(alpharefractsx1, matrefractsx1), sy1 = min(alpharefractsy1, matrefractsy1),
-              sx2 = max(alpharefractsx2, matrefractsx2), sy2 = max(alpharefractsy2, matrefractsy2);
+        float sx1 = min(vaalphabbmin[VA_ALPHA_REFRACT].x, matrefractsx1), sy1 = min(vaalphabbmin[VA_ALPHA_REFRACT].y, matrefractsy1),
+              sx2 = max(vaalphabbmax[VA_ALPHA_REFRACT].x, matrefractsx2), sy2 = max(vaalphabbmax[VA_ALPHA_REFRACT].y, matrefractsy2);
         bool scissor = sx1 > -1 || sy1 > -1 || sx2 < 1 || sy2 < 1;
         if(scissor)
         {
@@ -4674,12 +4674,18 @@ void rendertransparent()
             break;
         case 1:
             if(!(hasalphavas&1)) continue;
-            sx1 = alphabacksx1; sy1 = alphabacksy1; sx2 = alphabacksx2; sy2 = alphabacksy2;
+            sx1 = vaalphabbmin[VA_ALPHA_BACK].x;
+            sy1 = vaalphabbmin[VA_ALPHA_BACK].y;
+            sx2 = vaalphabbmax[VA_ALPHA_BACK].x;
+            sy2 = vaalphabbmax[VA_ALPHA_BACK].y;
             memcpy(tiles, alphatiles, sizeof(tiles));
             break;
         case 2:
-            if(!(hasalphavas&2) && !(hasmats&2)) continue;
-            sx1 = alphafrontsx1; sy1 = alphafrontsy1; sx2 = alphafrontsx2; sy2 = alphafrontsy2;
+            if(!(hasalphavas&4) && !(hasalphavas&2) && !(hasmats&2)) continue;
+            sx1 = vaalphabbmin[VA_ALPHA_FRONT].x;
+            sy1 = vaalphabbmin[VA_ALPHA_FRONT].y;
+            sx2 = vaalphabbmax[VA_ALPHA_FRONT].x;
+            sy2 = vaalphabbmax[VA_ALPHA_FRONT].y;
             memcpy(tiles, alphatiles, sizeof(tiles));
             if(hasmats&2)
             {
@@ -4744,7 +4750,7 @@ void rendertransparent()
             renderalphageom(1);
             break;
         case 2:
-            if(hasalphavas&2) renderalphageom(2);
+            if(hasalphavas&2 || hasalphavas&4) renderalphageom(2);
             if(hasmats&2) rendersolidmaterials();
             renderstains(STAINBUF_TRANSPARENT, true, layer+1);
             break;

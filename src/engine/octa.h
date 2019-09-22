@@ -119,6 +119,25 @@ enum
     MERGE_USE    = 1<<2
 };
 
+enum
+{
+    VA_NO_ALPHA = -1,
+
+    VA_ALPHA_REFRACT,
+    VA_ALPHA_FRONT,
+    VA_ALPHA_BACK,
+    //VA_ALPHA_REFLECT,
+
+     VA_ALPHA_NUM_TYPES
+};
+
+ struct vaalphainfo
+{
+    int tris;
+    int texs;
+    ivec bbmin, bbmax;
+};
+
 struct vtxarray
 {
     vtxarray *parent;
@@ -131,12 +150,11 @@ struct vtxarray
     ushort minvert, maxvert; // DRE info
     elementset *texelems, *decalelems;   // List of element indices sets (range) per texture
     materialsurface *matbuf; // buffer of material surfaces
-    int verts, tris, texs, blendtris, blends, alphabacktris, alphaback, alphafronttris, alphafront, refracttris, refract, texmask, sky, matsurfs, matmask, distance, rdistance, dyntexs, decaltris, decaltexs;
+    vaalphainfo alpha[VA_ALPHA_NUM_TYPES];
+    int verts, tris, texs, blendtris, blends, texmask, sky, matsurfs, matmask, distance, rdistance, dyntexs, decaltris, decaltexs;
     ivec o;
     int size;                // location and size of cube.
     ivec geommin, geommax;   // BB of geom
-    ivec alphamin, alphamax; // BB of alpha geom
-    ivec refractmin, refractmax; // BB of refract geom
     ivec skymin, skymax;     // BB of any sky geom
     ivec lavamin, lavamax;   // BB of any lava
     ivec watermin, watermax; // BB of any water

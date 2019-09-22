@@ -584,7 +584,7 @@ extern void updatevabbs(bool force = false);
 // renderva
 
 extern int oqfrags;
-extern float alphafrontsx1, alphafrontsx2, alphafrontsy1, alphafrontsy2, alphabacksx1, alphabacksx2, alphabacksy1, alphabacksy2, alpharefractsx1, alpharefractsx2, alpharefractsy1, alpharefractsy2;
+extern vec2 vaalphabbmin[VA_ALPHA_NUM_TYPES], vaalphabbmax[VA_ALPHA_NUM_TYPES];
 extern uint alphatiles[LIGHTTILE_MAXH];
 extern int blankgeom;
 extern vtxarray *visibleva;
