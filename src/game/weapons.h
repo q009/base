@@ -83,6 +83,30 @@ enum
 
 enum
 {
+    W_FX_NONE = -1,
+
+    W_FX_CLAW1 = 0,   W_FX_CLAW2,   W_FX_CLAW_POWER,
+    W_FX_PISTOL1,     W_FX_PISTOL2, W_FX_PISTOL_POWER,
+    W_FX_SWORD1,      W_FX_SWORD2,  W_FX_SWORD_POWER,
+    W_FX_SG1,         W_FX_SG2,     W_FX_SG_POWER,
+    W_FX_SMG1,        W_FX_SMG2,    W_FX_SMG_POWER,
+    W_FX_FLAMER1,     W_FX_FLAMER2, W_FX_FLAMER_POWER,
+    W_FX_PLASMA1,     W_FX_PLASMA2, W_FX_PLASMA_POWER,
+    W_FX_ZAPP1,       W_FX_ZAPP2,   W_FX_ZAPP_POWER,
+    W_FX_RIFLE1,      W_FX_RIFLE2,  W_FX_RIFLE_POWER,
+    W_FX_NADE1,       W_FX_NADE2,   W_FX_NADE_POWER,
+    W_FX_MINE1,       W_FX_MINE2,   W_FX_MINE_POWER,
+    W_FX_ROCKET1,     W_FX_ROCKET2, W_FX_ROCKET_POWER,
+    W_FX_MELEE1,      W_FX_MELEE2,  W_FX_MELEE_POWER,
+
+    W_FX_TYPES
+};
+
+#define WPOWERFX(weap) (2 + (weap * 3))
+#define W_FX_POWER_PARAM 0
+
+enum
+{
     COLLIDE_TRACE = 1<<0, COLLIDE_SCAN = 1<<1, COLLIDE_LENGTH = 1<<2, COLLIDE_PROJ = 1<<3, COLLIDE_OWNER = 1<<4,
     IMPACT_GEOM = 1<<5, IMPACT_PLAYER = 1<<6, IMPACT_SHOTS = 1<<7, BOUNCE_GEOM = 1<<8, BOUNCE_PLAYER = 1<<9, BOUNCE_SHOTS = 1<<10,
     DRILL_GEOM = 1<<11, DRILL_PLAYER = 1<<12, DRILL_SHOTS = 1<<13, STICK_GEOM = 1<<14, STICK_PLAYER = 1<<15,
@@ -534,6 +558,30 @@ WPVARM(IDF_GAMEMOD, 0, fragweap, -1, W_MAX*2-1,
 WPVARM(IDF_GAMEMOD, 0, fullauto, 0, 1,
     1,          0,          1,          0,          1,          1,          1,          1,          0,          0,          0,          0,          1,
     1,          0,          0,          0,          1,          0,          0,          1,          0,          0,          0,          0,          1
+);
+WPFVARK(IDF_GAMEMOD, 0, fxblend, 0, 1,
+    1.0f,       1.0f,       1.0f,       1.0f,       1.0f,       1.0f,       1.0f,       1.0f,       1.0f,       1.0f,       1.0f,       1.0f,       1.0f,
+    1.0f,       1.0f,       1.0f,       1.0f,       1.0f,       1.0f,       1.0f,       1.0f,       1.0f,       1.0f,       1.0f,       1.0f,       1.0f,
+    1.0f,       1.0f,       1.0f,       1.0f,       1.0f,       1.0f,       1.0f,       1.0f,       1.0f,       1.0f,       1.0f,       1.0f,       1.0f,
+    1.0f,       1.0f,       1.0f,       1.0f,       1.0f,       1.0f,       1.0f,       1.0f,       1.0f,       1.0f,       1.0f,       1.0f,       1.0f
+);
+WPVARK(IDF_GAMEMOD|IDF_HEX, 0, fxcol, PC(LAST), 0xFFFFFF,
+    0x907020,   0xD0D0D0,   0x1010F0,   0xF0F020,   0xF05820,   PC(FIRE),   0x40F0C8,   PC(SHOCK),  0xF020F0,   PC(FIRE),   0x00F068,   PC(FIRE),   0xEEEE22,
+    0x907020,   0xD0D0D0,   0x1010F0,   0xF0F020,   0xF05820,   0xFFFFFF,   0x40F0C8,   PC(SHOCK),  0xF020F0,   PC(FIRE),   0x00F068,   PC(FIRE),   0xEEEE22,
+    0x907020,   0xD0D0D0,   0x1010F0,   0xF0F020,   0xF05820,   PC(FIRE),   0x40F0C8,   PC(SHOCK),  0xF020F0,   PC(FIRE),   0x00F068,   PC(FIRE),   0xEEEE22,
+    0x907020,   0xD0D0D0,   0x1010F0,   0xF0F020,   0xF05820,   0xFFFFFF,   0x40F0C8,   PC(SHOCK),  0xF020F0,   PC(FIRE),   0x00F068,   PC(FIRE),   0xEEEE22
+);
+WPFVARK(IDF_GAMEMOD, 0, fxscale, 0, FVAR_MAX,
+    1.0f,       1.0f,       1.0f,       1.0f,       1.0f,       1.0f,       1.0f,       1.0f,       1.0f,       1.0f,       1.0f,      1.0f,       1.0f,
+    1.0f,       1.0f,       1.0f,       1.0f,       1.0f,       1.0f,       1.0f,       1.0f,       1.0f,       1.0f,       1.0f,      1.0f,       1.0f,
+    1.0f,       1.0f,       1.0f,       1.0f,       1.0f,       1.0f,       1.0f,       1.0f,       1.0f,       1.0f,       1.0f,      1.0f,       1.0f,
+    1.0f,       1.0f,       1.0f,       1.0f,       1.0f,       1.0f,       1.0f,       1.0f,       1.0f,       1.0f,       1.0f,      1.0f,       1.0f
+);
+WPVARK(IDF_GAMEMOD, 0, fxtype, -1, W_FX_TYPES-1,
+    W_FX_CLAW1, W_FX_PISTOL1,W_FX_SWORD1,W_FX_SG1,  W_FX_SMG1,  W_FX_FLAMER1,W_FX_PLASMA1,W_FX_ZAPP1,W_FX_RIFLE1,W_FX_NADE1,W_FX_MINE1, W_FX_ROCKET1,W_FX_MELEE1,
+    W_FX_CLAW2, W_FX_PISTOL2,W_FX_SWORD2,W_FX_SG2,  W_FX_SMG2,  W_FX_FLAMER2,W_FX_PLASMA2,W_FX_ZAPP2,W_FX_RIFLE2,W_FX_NADE2,W_FX_MINE2, W_FX_ROCKET2,W_FX_MELEE2,
+    W_FX_CLAW1, W_FX_PISTOL1,W_FX_SWORD1,W_FX_SG1,  W_FX_SMG1,  W_FX_FLAMER1,W_FX_PLASMA1,W_FX_ZAPP1,W_FX_RIFLE1,W_FX_NADE1,W_FX_MINE1, W_FX_ROCKET1,W_FX_MELEE1,
+    W_FX_CLAW2, W_FX_PISTOL2,W_FX_SWORD2,W_FX_SG2,  W_FX_SMG2,  W_FX_FLAMER2,W_FX_PLASMA2,W_FX_ZAPP2,W_FX_RIFLE2,W_FX_NADE2,W_FX_MINE2, W_FX_ROCKET2,W_FX_MELEE2
 );
 WPVARK(IDF_GAMEMOD, 0, grab, 0, 3,
     0,          0,          0,          0,          0,          0,          0,          0,          0,          0,          0,          0,          0,

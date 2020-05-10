@@ -1237,39 +1237,20 @@ namespace projs
         vec orig = d == game::player1 || d->ai ? from : d->muzzletag();
         if(delayattack >= 5 && weap < W_ALL)
         {
-            int colour = WHCOL(d, weap, partcol, WS(flags));
-            float muz = muzzleblend*W2(weap, partblend, WS(flags));
+            int color = WHCOL(d, weap, fxcol, WS(flags));
+            float muz = muzzleblend*W2(weap, fxblend, WS(flags));
             if(d == game::focus) muz *= muzzlefade;
-            const struct weapfxs
+            int type = WF(WK(flags), weap, fxtype, WS(flags));
+            int fxindex = game::getweapfx(type);
+            if(fxindex >= 0)
             {
-                int smoke, parttype, sparktime, sparknum, sparkrad;
-                float partsize, flaresize, flarelen, sparksize;
-            } weapfx[W_ALL] = {
-                { 0, 0, 0, 0, 0, 0, 0, 0, 0 },
-                { 200, PART_MUZZLE_FLASH, 200, 5, 4, 1, 1, 2, 0.0125f },
-                { 0, 0, 0, 0, 0, 0, 0, 0, 0 },
-                { 350, PART_MUZZLE_FLASH, 500, 20, 8, 3, 3, 6, 0.025f },
-                { 50, PART_MUZZLE_FLASH, 350, 5, 6, 1.5f, 2, 4, 0.0125f },
-                { 150, PART_MUZZLE_FLASH, 250, 5, 8, 1.5f, 0, 0, 0.025f },
-                { 150, PART_PLASMA, 250, 10, 6, 1.5f, 0, 0, 0.0125f },
-                { 150, PART_ELECZAP, 250, 10, 6, 1.5f, 0, 0, 0.0125f },
-                { 150, PART_PLASMA, 250, 5, 6, 2, 3, 6, 0.0125f },
-                { 0, 0, 0, 0, 0, 0, 0, 0, 0 },
-                { 0, 0, 0, 0, 0, 0, 0, 0, 0 },
-                { 150, PART_MUZZLE_FLASH, 250, 10, 8, 3, 3, 6, 0.0125f },
-            };
-            if(weapfx[weap].smoke) part_create(PART_SMOKE_LERP, weapfx[weap].smoke, orig, 0x888888, 1, 0.25f, -10);
-            if(weapfx[weap].sparktime && weapfx[weap].sparknum)
-                part_splash(weap == W_FLAMER ? PART_FIREBALL : PART_SPARK, weapfx[weap].sparknum, weapfx[weap].sparktime, orig, colour, weapfx[weap].sparksize, muz, 1, 0, weapfx[weap].sparkrad, 15);
-            if(muzzlechk(muzzleflash, d) && weapfx[weap].partsize > 0)
-                part_create(weapfx[weap].parttype, delayattack/3, orig, colour, weapfx[weap].partsize, muz, 0, 0, d);
-            if(muzzlechk(muzzleflare, d) && weapfx[weap].flaresize > 0)
-            {
-                vec targ = vec(dest).sub(orig).normalize().mul(weapfx[weap].flarelen).add(orig);
-                part_flare(orig, targ, delayattack/2, PART_MUZZLE_FLARE, colour, weapfx[weap].flaresize, muz, 0, 0, d);
+                float fxscale = WF(WK(flags), weap, fxscale, WS(flags));
+                vec targ;
+                safefindorientation(d->o, d->yaw, d->pitch, targ);
+                targ.sub(from).normalize().add(from);
+                fx::createfx(fxindex, from, targ, 1.0f, fxscale, bvec(color), d, &d->weaponfx);
+                d->weaponfx->setparam(W_FX_POWER_PARAM, scale);
             }
-            int peak = delayattack/4, fade = min(peak/2, 75);
-            adddynlight(orig, 32, vec::fromcolor(colour).mul(0.5f), fade, peak - fade, DL_FLASH);
         }
         loopv(shots)
             create(orig, vec(shots[i].pos).div(DMF), local, d, PRJ_SHOT, weap, flags, max(life, 1), W2(weap, time, WS(flags)), delay+(iter*i), speed, shots[i].id, weap, -1, flags, skew, false, v);
