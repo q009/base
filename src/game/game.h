@@ -1235,9 +1235,11 @@ struct gameent : dynent, clientstate
     vector<stunevent> stuns;
     vector<jitterevent> jitters;
     vector<int> vitems;
+    fx::emitter *weaponfx;
 
     gameent() : edit(NULL), ai(NULL), team(T_NEUTRAL), clientnum(-1), privilege(PRIV_NONE), projid(0), checkpoint(-1), cplast(0), lastupdate(0), lastpredict(0), plag(0), ping(0),
-        totaldamage(0), smoothmillis(-1), lastattacker(-1), lastpoints(0), quake(0), wasfiring(-1), conopen(false), k_up(false), k_down(false), k_left(false), k_right(false), obliterated(false)
+        totaldamage(0), smoothmillis(-1), lastattacker(-1), lastpoints(0), quake(0), wasfiring(-1), conopen(false), k_up(false), k_down(false), k_left(false), k_right(false), obliterated(false),
+        weaponfx(NULL)
     {
         state = CS_DEAD;
         type = ENT_PLAYER;
@@ -1248,6 +1250,7 @@ struct gameent : dynent, clientstate
     }
     ~gameent()
     {
+        removefx();
         removesounds();
         freeeditinfo(edit);
         if(ai) delete ai;
@@ -1482,6 +1485,8 @@ struct gameent : dynent, clientstate
         return projid;
     }
 
+    void removefx() { if(weaponfx) fx::stopfx(weaponfx); }
+
     void removesounds()
     {
         if(issound(aschan)) removesound(aschan);
@@ -1530,6 +1535,7 @@ struct gameent : dynent, clientstate
     void respawn(int millis, int gamemode, int mutators)
     {
         stopmoving(false);
+        removefx();
         removesounds();
         physent::reset();
         clearstate(millis, gamemode, mutators);
@@ -2250,6 +2256,7 @@ namespace game
     };
     extern avatarent avatarmodel, bodymodel;
 
+    extern int getweapfx(int type);
     extern bool needname(gameent *d);
     extern void vanityreset();
     extern void vanitybuild(gameent *d);

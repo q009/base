@@ -94,6 +94,7 @@ void cleanup()
     cleargamma();
     freeocta(worldroot);
     UI::cleanup();
+    fx::cleanup();
     cleanupwind();
     extern void clear_command(); clear_command();
     extern void clear_console(); clear_console();
@@ -1062,6 +1063,7 @@ int main(int argc, char **argv)
     conoutf("Loading world..");
     progress(0, "Loading world..");
     setupwind();
+    fx::setup();
     emptymap(0, true, NULL, false);
 
     conoutf("Loading config..");
@@ -1139,6 +1141,9 @@ int main(int argc, char **argv)
             {
                 game::recomputecamera();
                 setviewcell(camera1->o);
+                cleardynlights();
+                fx::update();
+                updatewind();
                 updatetextures();
                 updateparticles();
                 updatesounds();
