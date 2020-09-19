@@ -2305,7 +2305,7 @@ namespace modelpreview
         aspect = w/float(h);
         fovy = fov > 0 ? clamp(fov, 10.f, 100.f) : modelpreviewfov;
         curfov = 2*atan2(tan(fovy/2*RAD), 1/aspect)/RAD;
-        farplane = 1024;
+        farplane = 2048;
         vieww = min(gw, w);
         viewh = min(gh, h);
         ldrscale = 1;

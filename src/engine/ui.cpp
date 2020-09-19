@@ -4,6 +4,9 @@
 namespace UI
 {
     int cursortype = CURSOR_DEFAULT;
+    bool cursorlocked = false, mousetracking = false;
+
+    vec2 mousetrackvec;
 
     FVAR(0, uitextscale, 1, 0, 0);
 
@@ -1127,10 +1130,21 @@ namespace UI
 
     ICOMMAND(0, uicursorx, "", (), floatret(cursorx*float(hudw)/hudh));
     ICOMMAND(0, uicursory, "", (), floatret(cursory));
+    ICOMMAND(0, uilockcursor, "", (), cursorlocked = true);
 
     ICOMMAND(0, uiaspect, "", (), floatret(float(hudw)/hudh));
 
     ICOMMAND(0, uicursortype, "b", (int *val), { if(*val >= 0) cursortype = clamp(*val, 0, CURSOR_MAX-1); intret(cursortype); });
+
+    ICOMMAND(0, uimousetrackx, "", (), {
+        mousetracking = true;
+        floatret(mousetrackvec.x);
+    });
+
+    ICOMMAND(0, uimousetracky, "", (), {
+        mousetracking = true;
+        floatret(mousetrackvec.y);
+    });
 
     bool showui(const char *name)
     {
@@ -3132,6 +3146,7 @@ namespace UI
 
     struct Clipper : Object
     {
+        bool initialized;
         float sizew, sizeh, virtw, virth, offsetx, offsety;
 
         Clipper() : offsetx(0), offsety(0) {}
@@ -3143,7 +3158,7 @@ namespace UI
             sizeh = sizeh_;
             if(offsetx_ >= 0) offsetx = offsetx_;
             if(offsety_ >= 0) offsety = offsety_;
-            virtw = virth = 0;
+            //virtw = virth = 0;
         }
 
         static const char *typestr() { return "#Clipper"; }
@@ -3207,8 +3222,11 @@ namespace UI
 
     UIARGSCALEDT(Clipper, clip, sizew, "f", float, 0.f, FVAR_MAX);
     UIARGSCALEDT(Clipper, clip, sizeh, "f", float, 0.f, FVAR_MAX);
+    UIARGSCALEDT(Clipper, clip, virtw, "f", float, 0.f, FVAR_MAX);
+    UIARGSCALEDT(Clipper, clip, virth, "f", float, 0.f, FVAR_MAX);
     UIARGSCALEDT(Clipper, clip, offsetx, "f", float, FVAR_MIN, FVAR_MAX);
     UIARGSCALEDT(Clipper, clip, offsety, "f", float, FVAR_MIN, FVAR_MAX);
+
 
     struct Scroller : Clipper
     {
@@ -3663,8 +3681,9 @@ namespace UI
         float scale, offsetx, offsety;
         editor *edit;
         char *keyfilter;
+        bool canfocus;
 
-        TextEditor() : edit(NULL), keyfilter(NULL) {}
+        TextEditor() : edit(NULL), keyfilter(NULL), canfocus(true) {}
 
         bool iseditor() const { return true; }
 
@@ -3704,6 +3723,7 @@ namespace UI
             ::keyrepeat(allowtextinput, KR_UI);
         }
         void setfocus() { setfocus(this); }
+        void setfocusable(bool focusable) { canfocus = focusable; }
         void clearfocus() { if(focus == this) setfocus(NULL); }
         bool isfocus() const { return focus == this; }
 
@@ -3751,6 +3771,8 @@ namespace UI
 
         void press(float cx, float cy)
         {
+            if(!canfocus) return;
+
             setfocus();
             resetmark(cx, cy);
         }
@@ -3831,6 +3853,9 @@ namespace UI
     TextEditor *TextEditor::focus = NULL;
     ICOMMAND(0, uitexteditor, "siifsies", (char *name, int *length, int *height, float *scale, char *initval, int *mode, uint *children, char *keyfilter),
         BUILD(TextEditor, o, o->setup(name, *length, *height, (*scale <= 0 ? 1 : *scale)*uiscale * uitextscale, initval, *mode <= 0 ? EDITORFOREVER : *mode, keyfilter), children));
+
+    UICMDT(TextEditor, editor, setfocus, "", (), o->setfocus());
+    UICMDT(TextEditor, editor, setfocusable, "i", (int *focusable), o->setfocusable(*focusable));
 
     static const char *getsval(ident *id, bool &shouldfree, const char *val = "")
     {
@@ -4288,6 +4313,86 @@ namespace UI
     ICOMMAND(0, uivslotview, "iffe", (int *index, float *minw, float *minh, uint *children),
         BUILD(VSlotViewer, o, o->setup(*index, *minw*uiscale, *minh*uiscale), children));
 
+    struct DecalSlotViewer : SlotViewer
+    {
+        static const char *typestr() { return "#DecalSlotViewer"; }
+        const char *gettype() const { return typestr(); }
+
+        void previewslot(Slot &slot, VSlot &vslot, float x, float y, bool clamp = false)
+        {
+            if(!loadedshaders || slot.sts.empty()) return;
+            Texture *t = NULL, *glowtex = NULL;
+            if(slot.loaded)
+            {
+                t = slot.sts[0].t;
+                if(t == notexture) return;
+                Slot &slot = *vslot.slot;
+                if(slot.texmask&(1<<TEX_GLOW)) { loopvj(slot.sts) if(slot.sts[j].type==TEX_GLOW) { glowtex = slot.sts[j].t; break; } }
+            }
+            else
+            {
+                if(!slot.thumbnail)
+                {
+                    if(totalmillis - lastthumbnail < uislotviewtime) return;
+                    slot.loadthumbnail();
+                    lastthumbnail = totalmillis;
+                }
+                if(slot.thumbnail != notexture) t = slot.thumbnail;
+                else return;
+            }
+
+            changedraw(CHANGE_SHADER | CHANGE_COLOR);
+
+            SETSHADER(hudrgb);
+            vec2 tc[4] = { vec2(0, 0), vec2(1, 0), vec2(1, 1), vec2(0, 1) };
+            float xoff = float(vslot.offset.x)/t->xs, yoff = float(vslot.offset.y)/t->ys;
+            float xt = min(1.0f, t->xs/float(t->ys)), yt = min(1.0f, t->ys/float(t->xs));
+
+            xoff += (1.0f - xt) * 0.5f; yoff += (1.0f - yt) * 0.5f;
+
+            if(vslot.rotation)
+            {
+                const texrotation &r = texrotations[vslot.rotation];
+                if(r.swapxy) { swap(xoff, yoff); loopk(4) swap(tc[k].x, tc[k].y); }
+                if(r.flipx) { xoff *= -1; loopk(4) tc[k].x *= -1; }
+                if(r.flipy) { yoff *= -1; loopk(4) tc[k].y *= -1; }
+            }
+            loopk(4) { tc[k].x = (tc[k].x - xoff)/xt; tc[k].y = (tc[k].y - yoff)/yt; }
+            glBindTexture(GL_TEXTURE_2D, t->id);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_BORDER);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_BORDER);
+            vec colorscale = vslot.getcolorscale();
+            if(slot.loaded) gle::colorf(colorscale.x*colors[0].r/255.f, colorscale.y*colors[0].g/255.f, colorscale.z*colors[0].b/255.f, colors[0].a/255.f);
+            else gle::colorf(1, 1, 1, 1);
+            quad(x, y, w, h, tc);
+            if(glowtex)
+            {
+                glBlendFunc(GL_SRC_ALPHA, GL_ONE);
+                glBindTexture(GL_TEXTURE_2D, glowtex->id);
+                glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_BORDER);
+                glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_BORDER);
+                vec glowcolor = vslot.getglowcolor();
+                gle::colorf(glowcolor.x*colors[0].r/255.f, glowcolor.y*colors[0].g/255.f, glowcolor.z*colors[0].b/255.f, colors[0].a/255.f);
+                quad(x, y, w, h, tc);
+                glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+            }
+        }
+
+        void draw(float sx, float sy)
+        {
+            if(decalslots.inrange(index))
+            {
+                DecalSlot &slot = lookupdecalslot(index, false);
+                previewslot(slot, *slot.variants, sx, sy, true);
+            }
+
+            Object::draw(sx, sy);
+        }
+    };
+
+    ICOMMAND(0, uidecalslotview, "iffe", (int *index, float *minw, float *minh, uint *children),
+        BUILD(DecalSlotViewer, o, o->setup(*index, *minw*uiscale, *minh*uiscale), children));
+
     struct MiniMap : Target
     {
         Texture *tex;
@@ -4670,11 +4775,11 @@ namespace UI
             if(isdown)
             {
                 if(hold) world->clearstate(hold);
-                if(world->setstate(action, cursorx, cursory, 0, true, action|hold)) return true;
+                if(!TextEditor::focus && world->setstate(action, cursorx, cursory, 0, true, action|hold)) return true;
             }
             else if(hold)
             {
-                if(world->setstate(action, cursorx, cursory, hold, true, action))
+                if(!TextEditor::focus && world->setstate(action, cursorx, cursory, hold, true, action))
                 {
                     world->clearstate(hold);
                     return true;
@@ -4723,6 +4828,8 @@ namespace UI
         float oldtextscale = curtextscale;
         curtextscale = 1;
         cursortype = CURSOR_DEFAULT;
+        mousetracking = false;
+        cursorlocked = false;
         pushfont();
         readyeditors();
 
@@ -4736,6 +4843,8 @@ namespace UI
         if(*uiprecmd) execute(uiprecmd);
         world->build();
         if(*uipostcmd) execute(uipostcmd);
+
+        if(!mousetracking) mousetrackvec = vec2(0, 0);
 
         flusheditors();
         popfont();
@@ -4755,4 +4864,6 @@ namespace UI
         curtextscale = oldtextscale;
         world = wmain;
     }
+
+    void mousetrack(float dx, float dy) { mousetrackvec.add(vec2(dx, dy)); }
 }

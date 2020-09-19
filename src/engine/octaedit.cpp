@@ -2623,7 +2623,7 @@ void vshadow(float *shadow)
     mpeditvslot(usevdelta, ds, allfaces, sel, true);
 }
 COMMAND(0, vshadow, "f");
-ICOMMAND(0, getvshadow, "f", (float *tex), intret(lookupvslot(*tex, false).shadow));
+ICOMMAND(0, getvshadow, "f", (float *tex), floatret(lookupvslot(*tex, false).shadow));
 
 void vrefract(float *k, float *r, float *g, float *b)
 {
@@ -2678,19 +2678,20 @@ void vshaderparam(const char *name, float *x, float *y, float *z, float *w, int 
     mpeditvslot(usevdelta, ds, allfaces, sel, true);
 }
 COMMAND(0, vshaderparam, "sffffii");
+
 ICOMMAND(0, getvshaderparam, "is", (int *tex, const char *name),
 {
     VSlot &vslot = lookupvslot(*tex, false);
-    loopv(vslot.params)
+    float pal = 0;
+    float palidx = 0;
+    float *params = findslotparam(vslot, name, pal, palidx);
+
+    if(params)
     {
-        SlotShaderParam &p = vslot.params[i];
-        if(!strcmp(p.name, name))
-        {
-            defformatstring(str, "%s %s %s %s", floatstr(p.val[0]), floatstr(p.val[1]), floatstr(p.val[2]), floatstr(p.val[3]));
-            if(p.palette || p.palindex) concformatstring(str, " %d %d", p.palette, p.palindex);
-            result(str);
-            return;
-        }
+        defformatstring(str, "%s %s %s %s", floatstr(params[0]), floatstr(params[1]),
+            floatstr(params[2]), floatstr(params[3]));
+        if(pal || palidx) concformatstring(str, " %d %d", pal, palidx);
+        result(str);
     }
 });
 ICOMMAND(0, getvshaderparamnames, "i", (int *tex),
@@ -3005,6 +3006,14 @@ void gettexname(int *tex, int *subslot)
     result(slot.sts[*subslot].name);
 }
 
+void getdecalname(int *decal, int *subslot)
+{
+    if(*decal<0) return;
+    DecalSlot &slot = lookupdecalslot(*decal, false);
+    if(!slot.sts.inrange(*subslot)) return;
+    result(slot.sts[*subslot].name);
+}
+
 void getslottex(int *idx)
 {
     if(*idx < 0 || !slots.inrange(*idx)) { intret(-1); return; }
@@ -3019,10 +3028,12 @@ COMMAND(0, getcurtex, "");
 COMMAND(0, getseltex, "");
 ICOMMAND(0, getreptex, "", (), { if(!noedit()) intret(vslots.inrange(reptex) ? reptex : -1); });
 COMMAND(0, gettexname, "ii");
+COMMAND(0, getdecalname, "ii");
 ICOMMAND(0, texmru, "b", (int *idx), { filltexlist(); intret(texmru.inrange(*idx) ? texmru[*idx] : texmru.length()); });
 ICOMMAND(0, texmrufind, "i", (int *idx), { filltexlist(); intret(texmru.find(*idx)); });
 ICOMMAND(0, numvslots, "", (), intret(vslots.length()));
 ICOMMAND(0, numslots, "", (), intret(slots.length()));
+ICOMMAND(0, numdecalslots, "", (), intret(decalslots.length()));
 COMMAND(0, getslottex, "i");
 ICOMMAND(0, texloaded, "i", (int *tex), intret(slots.inrange(*tex) && slots[*tex]->loaded ? 1 : 0));
 

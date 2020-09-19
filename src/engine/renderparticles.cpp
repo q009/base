@@ -931,6 +931,7 @@ struct lineprimitiverenderer : listrenderer<lineprimitive>
     void startrender()
     {
         glDisable(GL_CULL_FACE);
+        glDisable(GL_DEPTH_TEST);
         gle::defvertex();
         gle::defcolor(4, GL_UNSIGNED_BYTE);
         gle::begin(GL_LINES);
@@ -939,6 +940,7 @@ struct lineprimitiverenderer : listrenderer<lineprimitive>
     void endrender()
     {
         gle::end();
+        glEnable(GL_DEPTH_TEST);
         glEnable(GL_CULL_FACE);
     }
 
@@ -979,6 +981,7 @@ struct trisprimitiverenderer : listrenderer<trisprimitive>
     void startrender()
     {
         glDisable(GL_CULL_FACE);
+        glDisable(GL_DEPTH_TEST);
         gle::defvertex();
         gle::defcolor(4, GL_UNSIGNED_BYTE);
         gle::begin(GL_TRIANGLES);
@@ -987,6 +990,7 @@ struct trisprimitiverenderer : listrenderer<trisprimitive>
     void endrender()
     {
         gle::end();
+        glEnable(GL_DEPTH_TEST);
         glEnable(GL_CULL_FACE);
     }
 
@@ -1039,11 +1043,13 @@ struct loopprimitiverenderer : listrenderer<loopprimitive>
     void startrender()
     {
         glDisable(GL_CULL_FACE);
+        glDisable(GL_DEPTH_TEST);
         gle::defvertex();
     }
 
     void endrender()
     {
+        glEnable(GL_DEPTH_TEST);
         glEnable(GL_CULL_FACE);
     }
 
@@ -1104,11 +1110,13 @@ struct coneprimitiverenderer : listrenderer<coneprimitive>
     void startrender()
     {
         glDisable(GL_CULL_FACE);
+        glDisable(GL_DEPTH_TEST);
         gle::defvertex();
     }
 
     void endrender()
     {
+        glEnable(GL_DEPTH_TEST);
         glEnable(GL_CULL_FACE);
     }
 
@@ -1377,7 +1385,7 @@ void regularcreate(int type, int color, int fade, const vec &p, float size, floa
     create(type, color, fade, p, size, blend, gravity, collide, pl);
 }
 
-VAR(IDF_PERSIST, maxparticledistance, 256, 1024, 4096);
+VAR(IDF_PERSIST, maxparticledistance, 256, 2048, 4096);
 
 void splash(int type, int color, float radius, int num, int fade, const vec &p, float size, float blend, float gravity, int collide, float vel)
 {
