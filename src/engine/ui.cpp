@@ -3677,7 +3677,6 @@ namespace UI
                 if(edit) clearfocus();
                 edit = edit_;
             }
-            else if(isfocus() && !hasstate(STATE_HOVER)) commit();
             if(initval && edit->mode == EDITORFOCUSED && !isfocus()) edit->clear(initval);
             edit->active = true;
             edit->linewrap = length < 0;
@@ -3874,7 +3873,6 @@ namespace UI
 
         void setup(ident *id_, int length, uint *onchange, float scale = 1, const char *keyfilter_ = NULL, bool immediate = false)
         {
-            if(isfocus() && !hasstate(STATE_HOVER)) commit();
             if(isfocus() && immediate && edit && id == id_)
             {
                 bool shouldfree = false;
